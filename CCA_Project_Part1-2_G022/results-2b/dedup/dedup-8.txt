@@ -1,0 +1,31 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2706
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\csgray\c0;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs22 \cf2 \CocoaLigature0 Launching parsec.dedup...\
+[PARSEC] Benchmarks to run:  parsec.dedup\
+\
+[PARSEC] [========== Running benchmark parsec.dedup [1] ==========]\
+[PARSEC] Setting up run directory.\
+[PARSEC] Unpacking benchmark input 'native'.\
+FC-6-x86_64-disc1.iso\
+[PARSEC] Running 'time /parsec/pkgs/kernels/dedup/inst/amd64-linux.gcc/bin/dedup -c -p -v -t 8 -i FC-6-x86_64-disc1.iso -o output.dat.ddp':\
+[PARSEC] [---------- Beginning of output ----------]\
+PARSEC Benchmark Suite Version 3.0-beta-20150206\
+Total input size:                      671.58 MB\
+Total output size:                     637.28 MB\
+Effective compression factor:            1.05x\
+\
+Mean data chunk size:                    1.88 KB (stddev: 2023.50 KB)\
+Amount of duplicate chunks:             54.49%\
+Data size after deduplication:         658.95 MB (compression factor: 1.02x)\
+Data size after compression:           630.26 MB (compression factor: 1.05x)\
+Output overhead:                         1.10%\
+\
+real	0m17.562s\
+user	0m34.681s\
+sys	0m8.371s\
+[PARSEC] [----------    End of output    ----------]}

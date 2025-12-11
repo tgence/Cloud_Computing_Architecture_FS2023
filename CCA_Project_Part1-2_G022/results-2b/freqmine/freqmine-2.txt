@@ -1,0 +1,43 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2706
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\csgray\c0;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs22 \cf2 \CocoaLigature0 Launching parsec.freqmine...\
+[PARSEC] Benchmarks to run:  parsec.freqmine\
+\
+[PARSEC] [========== Running benchmark parsec.freqmine [1] ==========]\
+[PARSEC] Setting up run directory.\
+[PARSEC] Unpacking benchmark input 'native'.\
+webdocs_250k.dat\
+[PARSEC] Running 'time /parsec/pkgs/apps/freqmine/inst/amd64-linux.gcc/bin/freqmine webdocs_250k.dat 11000':\
+[PARSEC] [---------- Beginning of output ----------]\
+PARSEC Benchmark Suite Version 3.0-beta-20150206\
+transaction number is 250000\
+829\
+28599\
+363898\
+2699198\
+13410070\
+47495313\
+124190838\
+245065199\
+369974305\
+430373350\
+386138019\
+265795578\
+138598934\
+53551164\
+14790217\
+2753445\
+311877\
+17498\
+269\
+the data preparation cost 3.460312 seconds, the FPgrowth cost 299.505602 seconds\
+\
+real	5m3.048s\
+user	9m53.411s\
+sys	0m5.806s\
+[PARSEC] [----------    End of output    ----------]}

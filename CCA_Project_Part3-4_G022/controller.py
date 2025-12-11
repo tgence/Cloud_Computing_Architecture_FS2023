@@ -1,13 +1,14 @@
 import docker
-import psutil
 import subprocess
 import time
+import psutil
 
 from datetime import datetime
 from enum import Enum
 import urllib.parse
 
 LOG_STRING = "{timestamp} {event} {job_name} {args}"
+POINTER = 0
 
 class Job(Enum):
     SCHEDULER = "scheduler"
@@ -19,6 +20,7 @@ class Job(Enum):
     FREQMINE = "freqmine"
     RADIX = "radix"
     VIPS = "vips"
+
 
 class SchedulerLogger:
     def __init__(self):
@@ -66,151 +68,176 @@ class SchedulerLogger:
         self.file.flush()
         self.file.close()
 
-class ParsecJob:
-    def __init__(self, name: Job, image: str, command: str, cpus: str, threads: int):
-        self.name = name
-        self.image = image
-        self.command = command
-        self.cpus = cpus
-        self.threads = threads
+logger = SchedulerLogger()
 
-# Define your Parsec jobs
-long_jobs = [
-    ParsecJob(Job.CANNEAL, "anakli/cca:parsec_canneal", "./bin/parsecmgmt -a run -p canneal -i native", "2,3", 4),
-    ParsecJob(Job.FERRET, "anakli/cca:parsec_ferret", "./bin/parsecmgmt -a run -p ferret -i native", "2,3", 2),
-    ParsecJob(Job.FREQMINE, "anakli/cca:parsec_freqmine", "./bin/parsecmgmt -a run -p freqmine -i native", "2,3", 2),
-    ParsecJob(Job.BLACKSCHOLES, "anakli/cca:parsec_blackscholes", "./bin/parsecmgmt -a run -p blackscholes -i native", "2,3", 4)
+client = docker.from_env()
+
+parsec_jobs = [
+    {
+        "name": "radix",
+        "image": "anakli/cca:splash2x_radix",
+        "command": "./bin/parsecmgmt -a run -p splash2x.radix -i native -n 4",
+        "cpus": "0,1,2,3"
+    },
+    {
+        "name": "vips",
+        "image": "anakli/cca:parsec_vips",
+        "command": "./bin/parsecmgmt -a run -p vips -i native -n 4",
+        "cpus": "0,1,2,3"
+    },   
+    {
+        "name": "canneal",
+        "image": "anakli/cca:parsec_canneal",
+        "command": "./bin/parsecmgmt -a run -p canneal -i native -n 2",
+        "cpus": "2,3"
+    },
+    {
+        "name": "ferret",
+        "image": "anakli/cca:parsec_ferret",
+        "command": "./bin/parsecmgmt -a run -p ferret -i native -n 2",
+        "cpus": "0,1"
+    }, 
+    {
+        "name": "freqmine",
+        "image": "anakli/cca:parsec_freqmine",
+        "command": "./bin/parsecmgmt -a run -p freqmine -i native -n 2",
+        "cpus": "0,1"
+    },
+    {
+        "name": "blackscholes",
+        "image": "anakli/cca:parsec_blackscholes",
+        "command": "./bin/parsecmgmt -a run -p blackscholes -i native -n 1",
+        "cpus": "2"
+    },
+    {
+        "name": "dedup",
+        "image": "anakli/cca:parsec_dedup",
+        "command": "./bin/parsecmgmt -a run -p dedup -i native -n 1",
+        "cpus": "0"
+    }
 ]
 
-short_jobs = [
-    ParsecJob(Job.VIPS, "anakli/cca:parsec_vips", "./bin/parsecmgmt -a run -p vips -i native", "1", 4),
-    ParsecJob(Job.RADIX, "anakli/cca:splash2x_radix", "./bin/parsecmgmt -a run -p splash2x.radix -i native", "1", 4),
-    ParsecJob(Job.DEDUP, "anakli/cca:parsec_dedup", "./bin/parsecmgmt -a run -p dedup -i native", "1", 4)
-]
+def create(job_info, parsec_containers):
+    names_of_containers = [cont.name for cont in parsec_containers]
+    if(job_info['name'] not in names_of_containers):
+        container = client.containers.run(name=job_info['name'],
+                                                detach=True,
+                                                auto_remove=False,
+                                                image=job_info['image'],
+                                                command=job_info['command'],
+                                                cpuset_cpus=job_info['cpus'])
+        logger.job_start(job_info['name'], job_info['cpus'], job_info['command'][-1])
+    else : return None
+    return container
 
-def main():
-    logger = SchedulerLogger()
-    client = docker.from_env()
-    long_jobs_queue = list(long_jobs)
-    short_jobs_queue = list(short_jobs)
-    running_jobs = []
-    completed_jobs = []
-    memcached_on_core1 = False
+def pause_container(container):
+    container.pause()
+    container.reload()
+    logger.job_pause(container.name)
+ 
 
-    def start_job(job_info):
-        container = client.containers.run(name=job_info.name.value, detach=True, image=job_info.image,
-                                        command=f"{job_info.command} -n {job_info.threads}", cpuset_cpus=job_info.cpus)
-        container.cpus = job_info.cpus  # Attach the cpuset_cpus as a new attribute to the container object
-        logger.job_start(job_info.name, job_info.cpus.split(','), job_info.threads)
-        return container
-
-    def stop_job(job_container):
-        job_container.stop()
-        job_container.reload()
-        logger.job_end(Job[job_container.name.upper()])
-
-    def pause_job(job_container):
-        job_container.pause()
-        job_container.reload()
-        logger.job_pause(Job[job_container.name.upper()])
-
-    def unpause_job(job_container):
-        job_container.unpause()
-        job_container.reload()
-        logger.job_unpause(Job[job_container.name.upper()])
-
-    def updates_cores(mem_pid, cores):
-        set_memcached_cpu(mem_pid, cores)
-        logger.update_cores("memcached", cores.split(','))
-
-    def write_logs(job_container):
-        logs = job_container.logs(tail=300)
-        with open(f"{job_container.name}.txt", "w") as file:
-            file.write(logs.decode())
-
-    memcached_pid = get_process_pid('memcached')
-    set_memcached_cpu(memcached_pid, '0')
-    time.sleep(20)
-    
-    try:
-        while True:
-            cpu_usage = psutil.cpu_percent(interval=None, percpu=True)
-            print(cpu_usage)
-            # If core 0 usage > 40% and memcached is not already running core 1 aswell, we set memcached to run on both cores
-            if cpu_usage[0] > 40 and not memcached_on_core1:
-                updates_cores(memcached_pid, '0,1')
-                memcached_on_core1 = True
-                # Pause all jobs running on core 1
-                for job_container in running_jobs:
-                    print(job_container.cpus == '1' and job_container.status != 'paused' and job_container.status == 'running')
-                    if job_container.cpus == '1' and job_container.status != 'paused' and job_container.status == 'running':
-                        pause_job(job_container)
-                        print("Pause")
-
-            # If core 0 usage + core 1 usage < 50% and memcached is running on core 1, we set memcached to run only on core 0
-            if cpu_usage[0] + cpu_usage[1] < 35 and memcached_on_core1:
-                updates_cores(memcached_pid, '0')
-                memcached_on_core1 = False
-                # Unpause all jobs running on core 1
-                for job_container in running_jobs:
-
-                    if job_container.cpus == '1' and job_container.status == 'paused':
-                        unpause_job(job_container)
-                        print("Unpause")
-
-            # This writes the logs and stops the containers that have finished
-            for job_container in running_jobs:
-                job_container.reload()
-                write_logs(job_container)
-
-                if job_container.status == 'exited':
-                    stop_job(job_container)
-                    completed_jobs.append(job_container)
-                    running_jobs.remove(job_container)  # remove the job from running_jobs list
-
-            
-            # This checks if all jobs have finished
-            if not any(job.status != 'exited' for job in running_jobs) and not long_jobs_queue and not short_jobs_queue:
-                print("Finish check true")
-                print("Long job queue:")
-                for job in long_jobs_queue:
-                    print(job.name)
-                print("Short job queue:")
-                for job in short_jobs_queue:
-                    print(job.name)
-                break
-            
-            # Check if long job is running
-            if not any(job.cpus  == "2,3" for job in running_jobs) and long_jobs_queue:
-                running_jobs.append(start_job(long_jobs_queue.pop(0)))
-            elif not any(job.cpus  == "1" for job in running_jobs) and short_jobs_queue:
-                running_jobs.append(start_job(short_jobs_queue.pop(0)))
-
-            # If there are no more long jobs and core 2,3 is free, start a short job there.
-            if not long_jobs_queue and not any(job.cpus == "2,3" for job in running_jobs) and short_jobs_queue:
-                job_to_start = short_jobs_queue.pop(0)
-                job_to_start.cpus = "2,3"  
-                running_jobs.append(start_job(job_to_start))
-
-            time.sleep(6)
+def unpause_container(container):
+    container.unpause()
+    container.reload()
+    logger.job_unpause(container.name)
 
 
-    finally:
-        for job in running_jobs:
-            if job.status != 'exited':
-                stop_job(job)
-        logger.end()
+def update_cpu_set(container, cpu_set):
+    logger.update_cores(container, cpu_set)
+    container.update(cpuset_cpus=cpu_set)
 
-def get_process_pid(process_name):
-    for proc in psutil.process_iter(['name']):
-        if proc.info['name'] == process_name:
+def adjust_resources(parsec_containers,pointer2):
+    cpu_usage = psutil.cpu_percent(interval=None, percpu=True)
+    print(cpu_usage)
+    total_usage = sum(cpu_usage)   
+    required = parsec_jobs[pointer2]['cpus'].split(',')
+    ids = list(map(lambda x: int(x), required))
+    min_cpu_usage = min(cpu_usage[id] for id in ids)
+    max_cpu_usage = max(cpu_usage[id] for id in ids)
+    min_cpu_id = cpu_usage.index(min_cpu_usage)
+    max_cpu_id = cpu_usage.index(max_cpu_usage)
+
+    if total_usage > 380:
+        if max_cpu_usage >= 95:
+            for container in parsec_containers:
+                cpus = container.attrs['HostConfig']['CpusetCpus']
+                cpus_list = cpus.split(',')
+                if str(max_cpu_id) in cpus_list:
+                    if container and not container.status == "paused" and container.status == "running" and not container.status == "created" and not container.status == "exited":
+                        print(container.status)
+                        pause_container(container)
+
+            pointer2 = (pointer2 + 1) % 7
+            return None, pointer2
+        
+    for container in parsec_containers:
+        cpus = container.attrs['HostConfig']['CpusetCpus']
+        cpus_list = cpus.split(',')
+        if str(min_cpu_id) in cpus_list and container.status == "paused":
+            unpause_container(container)
+    container = create(parsec_jobs[pointer2], parsec_containers)
+    pointer2 = (pointer2 + 1) % 7
+    return container, pointer2
+
+def start_or_unpause_container(container):
+    if container and container.status == "paused":
+        unpause_container(container)
+
+
+def memcached_pid():
+    for proc in psutil.process_iter():
+        if "memcache" in proc.name():
             return proc.pid
-    return None
 
 def set_memcached_cpu(pid, cpus):
-    subprocess.run(['taskset', '-pc', cpus, str(pid)])
-    
-    
+    command = f'sudo taskset -a -cp {cpus} {pid}'
+    logger.update_cores("memcached", cpus)
+    subprocess.run(command.split(" "), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
-if __name__ == '__main__':
+
+def stop_containers(containers):
+    for container in containers:
+        container.stop()
+        container.remove()
+
+def main():
+    pointer = 0
+    parsec_containers = []
+    completed_jobs = []
+
+    try:
+        while True:
+            container, pointer = adjust_resources(parsec_containers,pointer)
+
+            if container:
+                parsec_containers.append(container)
+                container.reload()
+
+            for container in parsec_containers:
+                container.reload()
+                if(container.status == "exited" and container not in completed_jobs):
+                    logger.job_end(container.name)
+                    completed_jobs.append(container)
+                container_id = container.name
+                logs = container.logs(tail=300)
+
+
+                file_name = f"{container_id}.txt"
+                with open(file_name, "w") as file:
+                    #time.sleep(20)
+                    file.write(logs.decode())
+
+           # print(completed_jobs)
+           # print(len(completed_jobs))
+           # print(len(parsec_jobs))
+            
+            if len(completed_jobs) == len(parsec_jobs):
+                break 
+
+            time.sleep(10)
+
+    finally:
+        stop_containers(parsec_containers)
+
+if __name__ == "__main__":
     main()

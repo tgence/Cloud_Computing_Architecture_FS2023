@@ -1,0 +1,52 @@
+kubectl create -f interference\ibench-l1i.yaml
+
+gcloud compute ssh --ssh-key-file C:\Users\olezh\.ssh\cloud-computing ubuntu@parsec-server-j3b2 --zone europe-west3-a
+
+kubectl create -f parsec-benchmarks/part2a/parsec-blackscholes.yaml
+
+kubectl get jobs
+
+kubectl get pods --selector=job-name=parsec-blackscholes --output=jsonpath='{.items[*].metadata.name}'
+
+kubectl logs parsec-blackscholes-kqvnm
+
+kubectl create -f parsec-benchmarks/part2a/parsec-canneal.yaml
+
+kubectl get pods --selector=job-name=parsec-canneal --output=jsonpath='{.items[*].metadata.name}'
+
+kubectl logs parsec-canneal-kqvnm
+
+kubectl create -f parsec-benchmarks/part2a/parsec-dedup.yaml
+
+kubectl get pods --selector=job-name=parsec-dedup --output=jsonpath='{.items[*].metadata.name}'
+
+kubectl logs parsec-dedup-kqvnm
+
+kubectl create -f parsec-benchmarks/part2a/parsec-ferret.yaml
+
+kubectl get pods --selector=job-name=parsec-ferret --output=jsonpath='{.items[*].metadata.name}'
+
+kubectl logs parsec-ferret-kqvnm
+
+kubectl create -f parsec-benchmarks/part2a/parsec-freqmine.yaml
+
+kubectl get pods --selector=job-name=parsec-freqmine --output=jsonpath='{.items[*].metadata.name}'
+
+kubectl logs parsec-freqmine-kqvnm
+
+kubectl create -f parsec-benchmarks/part2a/parsec-radix.yaml
+
+kubectl get pods --selector=job-name=parsec-radix --output=jsonpath='{.items[*].metadata.name}'
+
+kubectl logs parsec-radix-kqvnm
+
+kubectl create -f parsec-benchmarks/part2a/parsec-vips.yaml
+
+kubectl get pods --selector=job-name=parsec-vips --output=jsonpath='{.items[*].metadata.name}'
+
+kubectl logs parsec-vips-kqvnm
+
+kubectl delete jobs --all
+
+kubectl delete pods --all
+
